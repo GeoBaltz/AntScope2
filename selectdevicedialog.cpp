@@ -300,8 +300,8 @@ void SelectDeviceDialog::onScan(ReDeviceInfo::InterfaceType type)
             ui->tableWidget->setItem(row, 0, item);
 
             QString serial = info.serial().trimmed();
-            if (!name.contains("Match", Qt::CaseInsensitive))
-                serial = serial.mid(4);
+//            if (!name.contains("Match", Qt::CaseInsensitive))
+//                serial = serial.mid(4);
             item = new QTableWidgetItem(serial);
             item->setData(Qt::UserRole+2, info.serial().trimmed());
             ui->tableWidget->setItem(row, 1, item);
