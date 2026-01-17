@@ -162,7 +162,9 @@ QString ReDeviceInfo::deviceName(const ReDeviceInfo &dev)
     int pref = dev.serial().mid(0, 4).toInt();
     switch (pref) {
     case PREFIX_SERIAL_NUMBER_STICK_XPRO: return "Stick XPro";
+    case PREFIX_SERIAL_NUMBER_STICK_XPRO_2: return "Stick XPro";
     case PREFIX_SERIAL_NUMBER_STICK_500: return "Stick 500";
+    case PREFIX_SERIAL_NUMBER_STICK_500_2: return "Stick 500";
     case PREFIX_SERIAL_NUMBER_WILSON_PRO: return "WilsonPro CAA";
     case PREFIX_SERIAL_NUMBER_AA3000: return "AA-3000 ZOOM";
     case PREFIX_SERIAL_NUMBER_AA1500SE: return "AA-1500 ZOOM SE";
@@ -189,9 +191,9 @@ QString ReDeviceInfo::deviceName(const ReDeviceInfo &dev)
 
     case 4:
     {
-        if (modelCode == "230")
+        if (modelCode == "230" || modelCode == "231")
             return "Stick 230";
-        if (modelCode == "600")
+        if (modelCode == "600" || modelCode == "601")
             return "Stick Pro";
         if (modelCode == "001")
             return "Zero II";
