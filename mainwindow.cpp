@@ -249,6 +249,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_analyzer,SIGNAL(measurementComplete()),this,SLOT(on_measurementComplete()));//, Qt::QueuedConnection);
     connect(m_analyzer,SIGNAL(measurementCompleteNano()),this,SLOT(on_measurementCompleteNano()));//, Qt::QueuedConnection);
     connect(this,SIGNAL(stopMeasure()), m_analyzer, SLOT(on_stopMeasure()));
+    connect(this, &MainWindow::stopMeasure,  m_measurements, &Measurements::on_measurementComplete);
     connect(this,&MainWindow::measureOneFq, m_analyzer,&AnalyzerPro::on_measureOneFq);
     connect(m_analyzer, &AnalyzerPro::signalMeasurementError, this, &MainWindow::onMeasurementError);
     connect(m_analyzer, &AnalyzerPro::showNotification, this, &MainWindow::on_showNotification);
@@ -4422,6 +4423,8 @@ void MainWindow::on_continuousStartBtn_clicked(bool checked)
 {
     if (isMeasuring())
     {
+        qInfo() << "MainWindow::on_continuousStartBtn_clicked";
+        m_measurements->stopMeasuring();
         m_bInterrupted = true;
         emit stopMeasure();
         ui->singleStart->setChecked(false);
@@ -5171,7 +5174,7 @@ void MainWindow::on_screenshot_clicked()
     {
         return;
     }
-    if(str.indexOf(".png") == -1)
+    if(str.indexOf(".png", 0, Qt::CaseInsensitive) < 0)
     {
         str += ".png";
     }
@@ -5424,6 +5427,8 @@ void MainWindow::on_measurmentsSaveBtn_clicked()
         QString path = FileDialog::getSaveFileName(this, "Save file", m_lastSaveOpenPath, "AntScope2 (*.asd )");
         if(!path.isEmpty())
         {
+            if (path.indexOf(".asd", 0, Qt::CaseInsensitive) < 0)
+                path += ".asd";
             m_lastSaveOpenPath = path;
             QTableWidgetItem * item = list.at(0);
             int row = item->row();

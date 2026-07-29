@@ -538,17 +538,26 @@ void Measurements::on_continueMeasurement(qint64 from, qint64 to, qint32 dots)
    // Q_UNUSED (from);
   //  Q_UNUSED (to);
   //  Q_UNUSED (dots);
+    QCPCurveDataMap* map = m_measurements.last().smithCurve->data();
+    QCPCurveDataMap::Iterator it = map->begin();
+    int count = map->count();
 
     m_isContinuing = true;
     m_currentPoint = 0;
     m_measurements.last().set(from, to, dots); //vnn_0327
+    QPen pen = m_measurements.last().smithCurve->pen();
+
+    m_measurements.last().smithGraph.clear();
+    m_measurements.last().smithGraphView.clear();
+    m_measurements.last().smithCurve->clearData();
+    m_viewMeasurements.last().smithCurve->clearData();
+    m_farEndMeasurementsAdd.last().smithCurve->clearData();
+    m_farEndMeasurementsSub.last().smithCurve->clearData();
 
     delete m_measurements.last().smithCurve;
     delete m_viewMeasurements.last().smithCurve;
     delete m_farEndMeasurementsAdd.last().smithCurve;
     delete m_farEndMeasurementsSub.last().smithCurve;
-    //m_measurements.last().dataRX.clear();
-    //m_measurements.last().dataRXCalib.clear();
     m_viewMeasurements.last().dataRX.clear();
     m_viewMeasurements.last().dataRXCalib.clear();
     m_farEndMeasurementsAdd.last().dataRX.clear();
@@ -560,6 +569,11 @@ void Measurements::on_continueMeasurement(qint64 from, qint64 to, qint32 dots)
     m_viewMeasurements.last().smithCurve = new QCPCurve(m_smithWidget->xAxis, m_smithWidget->yAxis);
     m_farEndMeasurementsAdd.last().smithCurve = new QCPCurve(m_smithWidget->xAxis, m_smithWidget->yAxis);
     m_farEndMeasurementsSub.last().smithCurve = new QCPCurve(m_smithWidget->xAxis, m_smithWidget->yAxis);
+
+    m_measurements.last().smithCurve->setPen(pen);
+    m_viewMeasurements.last().smithCurve->setPen(pen);
+    m_farEndMeasurementsAdd.last().smithCurve->setPen(pen);
+    m_farEndMeasurementsSub.last().smithCurve->setPen(pen);
 }
 
 void Measurements::on_newAnalyzerData(RawData _rawData)
@@ -627,6 +641,9 @@ double regulate(double val, double limit)
     return _val;
 }
 
+
+
+
 void Measurements::on_newData(RawData _rawData, bool _redraw)
 {
     if (m_oneFqMode) {
@@ -648,6 +665,10 @@ void Measurements::on_newData(RawData _rawData, bool _redraw)
     if (m_measurements.isEmpty()) {
         return;
     }
+
+    if (!m_measuringInProgress)
+        return;
+
     // fix popup hint bug
     if (m_isContinuing) {
         if (m_currentPoint < m_measurements.last().dataRX.size()) {
@@ -691,7 +712,6 @@ void Measurements::on_newData(RawData _rawData, bool _redraw)
     QCPData data;
     data.key = fq;
     data.value = regulate(VSWR, MAX_SWR);
-    //----------------------------------------------
     //----2025_0326 vnn_0327
     measurement& mm = m_measurements.last();
     double fqDx =( ((mm.qint64To - mm.qint64From)/mm.qint64Dots))/1000;//
@@ -884,9 +904,11 @@ void Measurements::on_newData(RawData _rawData, bool _redraw)
 //------------------------------------------------------------------------------
     double pointX,pointY;
     NormRXtoSmithPoint(R/m_Z0, X/m_Z0, pointX, pointY);
-    double len = m_measurements.last().dataRX.length();
+    double len = m_currentPoint;
     m_measurements.last().smithGraph.insert(len, QCPCurveData(len, pointX, pointY));
-    len = m_measurements.last().dataRX.length()*2 - 1;
+    len = m_currentPoint*2-1;
+    if (len < 0)
+        len = 0;
     m_measurements.last().smithGraphView.insert(len, QCPCurveData(len, pointX, pointY));
 
 //------------------------------------------------------------------------------
@@ -1048,9 +1070,11 @@ void Measurements::on_newData(RawData _rawData, bool _redraw)
             double ptX,ptY;
             //NormRXtoSmithPoint(R/m_Z0, X/m_Z0, ptX, ptY);
             NormRXtoSmithPoint(Rnorm, Xnorm, ptX, ptY);
-            int len = m_measurements.last().dataRX.length();
+            int len = m_currentPoint;
             m_measurements.last().smithGraphCalib.insert(len, QCPCurveData(len, ptX, ptY));
-            len = m_measurements.last().dataRX.length()*2 - 1;
+            len = m_currentPoint*2-1;
+            if (len < 0)
+                len = 0;
             m_measurements.last().smithGraphViewCalib.insert(len, QCPCurveData(len, ptX, ptY));
              //----------------------calc smith end---------------------------
         }
@@ -1464,6 +1488,9 @@ void Measurements::on_newCursorSmithPos (double x, double y, int index)
 //                findedNum = m_measurements.at(index).dataRX.count()-1;
 //            }
 //            //
+            int maxIndex = m_measurements.at(index).dataRX.size()-1;
+            if (findedNum > maxIndex)
+                findedNum = maxIndex;
             r = m_measurements.at(index).dataRX.at(findedNum).r;
             x1 = m_measurements.at(index).dataRX.at(findedNum).x;
         }
@@ -2446,51 +2473,51 @@ void Measurements::saveData(quint32 number, QString path)
     if (number >= (quint32)g_maxMeasurements)
         number = g_maxMeasurements-1;
 
-    if(path.indexOf(".asd") >= 0 )
+    if(path.indexOf(".asd") < 0 )
+        path += ".asd";
+
+    QFile saveFile(path);
+
+    if (!saveFile.open(QIODevice::WriteOnly))
     {
-        QFile saveFile(path);
+        qWarning("Couldn't open save file.");
+        return;
+    }
 
-        if (!saveFile.open(QIODevice::WriteOnly))
+    QVector <RawData> data;
+    if(m_calibration != NULL)
+    {
+        if(m_calibration->getCalibrationEnabled())
         {
-            qWarning("Couldn't open save file.");
-            return;
-        }
-
-        QVector <RawData> data;
-        if(m_calibration != NULL)
-        {
-            if(m_calibration->getCalibrationEnabled())
-            {
-                data = m_measurements.at(number).dataRXCalib;
-            }else
-            {
-                data = m_measurements.at(number).dataRX;
-            }
+            data = m_measurements.at(number).dataRXCalib;
         }else
         {
             data = m_measurements.at(number).dataRX;
         }
-
-        //Dots
-        QJsonObject mainObj;
-        mainObj["DotsNumber"] = data.length();
-
-        //Measurements
-        QJsonArray measurementsArray;
-        for(int i = 0; i < data.length(); ++i)
-        {
-            QJsonObject obj;
-            obj["fq"] = data.at(i).fq;
-            obj["r"] = data.at(i).r;
-            obj["x"] = data.at(i).x;
-            measurementsArray.append(obj);
-        }
-        mainObj["Measurements"] = measurementsArray;
-
-        QJsonDocument saveDoc(mainObj);
-
-        saveFile.write(saveDoc.toJson());
+    }else
+    {
+        data = m_measurements.at(number).dataRX;
     }
+
+    //Dots
+    QJsonObject mainObj;
+    mainObj["DotsNumber"] = data.length();
+
+    //Measurements
+    QJsonArray measurementsArray;
+    for(int i = 0; i < data.length(); ++i)
+    {
+        QJsonObject obj;
+        obj["fq"] = data.at(i).fq;
+        obj["r"] = data.at(i).r;
+        obj["x"] = data.at(i).x;
+        measurementsArray.append(obj);
+    }
+    mainObj["Measurements"] = measurementsArray;
+
+    QJsonDocument saveDoc(mainObj);
+
+    saveFile.write(saveDoc.toJson());
 }
 
 void Measurements::loadData(QString path)

@@ -17,6 +17,7 @@ QString FileDialog::getOpenFileName(QWidget *parent,
     dlg.setWindowTitle(caption);
     dlg.setDirectory(dir);
     dlg.setNameFilter(filter);
+    dlg.setAcceptMode(QFileDialog::AcceptOpen);
     QString style;
     style += Style::dialog();
     style += Style::pushButton();
@@ -40,6 +41,7 @@ QString FileDialog::getSaveFileName(QWidget *parent,
     dlg.setWindowTitle(caption);
     dlg.setDirectory(dir);
     dlg.setNameFilter(filter);
+    dlg.setAcceptMode(QFileDialog::AcceptSave);
     QString style;
     style += Style::dialog();
     style += Style::pushButton();

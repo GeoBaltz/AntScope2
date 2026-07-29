@@ -64,6 +64,8 @@ void Export::on_csvBtn_clicked()
         QString path = FileDialog::getSaveFileName(this, "Export", m_lastExportPath, "Comma Separated Values (*.csv)");
         if(!path.isEmpty())
         {
+            if (path.indexOf(".csv", 0, Qt::CaseInsensitive) < 0)
+                path += ".csv";
             m_lastExportPath = path;
             m_measurements->exportData(path, 0, m_measureNumber, m_bApplyCable);
         }
@@ -83,6 +85,8 @@ void Export::on_nwlBtn_clicked()
 
         if(!path.isEmpty())
         {
+            if (path.indexOf(".nwl", 0, Qt::CaseInsensitive) < 0)
+                path += ".nwl";
             m_lastExportPath = path;
             m_measurements->exportData(path, 0, m_measureNumber, m_bApplyCable);
         }
@@ -102,6 +106,8 @@ void Export::on_zRiBtn_clicked()
 
         if(!path.isEmpty())
         {
+            if (path.indexOf(".s1p", 0, Qt::CaseInsensitive) < 0)
+                path += ".s1p";
             m_lastExportPath = path;
             m_measurements->exportData(path, 0, m_measureNumber, m_bApplyCable, m_description);
         }
@@ -121,6 +127,8 @@ void Export::on_sRiBtn_clicked()
 
         if(!path.isEmpty())
         {
+            if (path.indexOf(".s1p", 0, Qt::CaseInsensitive) < 0)
+                path += ".s1p";
             m_lastExportPath = path;
             m_measurements->exportData(path, 1, m_measureNumber, m_bApplyCable, m_description);
         }
@@ -140,6 +148,8 @@ void Export::on_sMaBtn_clicked()
 
         if(!path.isEmpty())
         {
+            if (path.indexOf(".s1p", 0, Qt::CaseInsensitive) < 0)
+                path += ".s1p";
             m_lastExportPath = path;
             m_measurements->exportData(path, 2, m_measureNumber, m_bApplyCable, m_description);
         }

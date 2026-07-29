@@ -131,6 +131,7 @@ public:
     void setBriefHintColor();
     double tdrZRange() { return m_tdrZRange; }
     QString currentTab() { return m_currentTab; }
+    void stopMeasuring() { m_measuringInProgress = false; }
 
 private:
 //    QVector <rawData> m_rawDataVector;

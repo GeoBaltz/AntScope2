@@ -243,6 +243,14 @@ QString AnalyzerPro::getMaxFq()
 void AnalyzerPro::on_measure (qint64 fqFrom, qint64 fqTo, qint32 dotsNumber)
 {
     //qDebug() << "AnalyzerPro::on_measure()";
+    AnalyzerParameters* param = AnalyzerParameters::current();
+    if (param != nullptr) {
+        QString aName = param->name();
+        if (aName.contains("Stick")) {
+            if (dotsNumber > 1000)
+                dotsNumber = 1000;
+        }
+    }
     m_getAnalyzerData = false;
     if(!m_isMeasuring)
     {

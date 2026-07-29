@@ -105,7 +105,10 @@ QList<ReDeviceInfo> ReDeviceInfo::availableHID(quint16 vid, quint16 pid)
     /*delete list*/
     hid_free_enumeration(devs);
 
-    hid_exit();
+//{ 20260722 an erroneously placed hid_exit (redeviceinfo.cpp:108) causing a ABENDs.
+    //hid_exit();
+//}
+
     return list;
 }
 
