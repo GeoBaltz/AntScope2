@@ -21,7 +21,7 @@ enum {
     BLE_REC_ERASE_CMD = (quint8)0xAF,
     BLE_SCREENSHOT_CMD = (quint8)0xAD,
     BLE_PING_CMD = (quint8)0x5A,
-    BLE_CANCEL_CMD = (quint8)0x69,
+    BLE_BREAK_CMD = (quint8)0x69,
     BLE_FULLINFO_CMD = (quint8)0x9B,
     BLE_SCREEN_PAL_CMD = (quint8)0xDA,
     BLE_SCREEN_PAL0_CMD = (quint8)0xD2,
@@ -170,6 +170,8 @@ public slots:
     void getAnalyzerData(QString number);
     void makeScreenshot();
     void stopMeasure();
+    void on_measurementComplete();
+    virtual void on_screenshotComplete();
 
 private slots:
     void addDevice(const QBluetoothDeviceInfo&);
@@ -180,6 +182,7 @@ private slots:
     void handlePing();
     void sendPing();
     void stopPing();
+    void sendBreak();
 
 signals:
     void errorChanged();
@@ -205,6 +208,7 @@ private:
     BleRequestRecord m_requestRecord;
     QMap<QString, BleRequestRecord> m_analyzerRecords;
     QString m_name;
+    QList<QByteArray> m_postponedCmd;
 
     long m_frxTime;//vnn_05
     bool m_frxGo = false;

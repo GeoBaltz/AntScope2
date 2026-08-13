@@ -84,7 +84,9 @@ void AnalyzerData::on_btnReadAll_clicked()
                                                  | QFileDialog::DontResolveSymlinks);
     if (strSaveDir.isEmpty())
         return;
-
+    if (!QFile::exists(strSaveDir)) {
+        QDir().mkpath(strSaveDir);
+    }
     mainWindow->lastSavePath() = strSaveDir;
 
     connect(mainWindow->analyzer(), &AnalyzerPro::measurementComplete, this, &AnalyzerData::on_complete);

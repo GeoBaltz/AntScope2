@@ -14,6 +14,8 @@
 QList<AnalyzerParameters*> AnalyzerParameters::m_analyzers;
 AnalyzerParameters* AnalyzerParameters::m_current=nullptr;
 #endif
+
+extern int g_maxDots;
 extern int g_showMessageBox(QWidget* parent, QMessageBox::Icon icon,
                             QString title, QString text,
                             QMessageBox::StandardButtons buttons = QMessageBox::Ok,
@@ -242,15 +244,9 @@ QString AnalyzerPro::getMaxFq()
 
 void AnalyzerPro::on_measure (qint64 fqFrom, qint64 fqTo, qint32 dotsNumber)
 {
-    //qDebug() << "AnalyzerPro::on_measure()";
-    AnalyzerParameters* param = AnalyzerParameters::current();
-    if (param != nullptr) {
-        QString aName = param->name();
-        if (aName.contains("Stick")) {
-            if (dotsNumber > 1000)
-                dotsNumber = 1000;
-        }
-    }
+    if (dotsNumber > g_maxDots)
+        dotsNumber = g_maxDots;
+
     m_getAnalyzerData = false;
     if(!m_isMeasuring)
     {
@@ -304,6 +300,7 @@ void AnalyzerPro::on_measureContinuous(qint64 fqFrom, qint64 fqTo, qint32 dotsNu
         m_chartCounter = 0;
         if (m_baseAnalyzer != nullptr && m_baseAnalyzer->connectionType() != ReDeviceInfo::NANO)
         {
+            m_baseAnalyzer->on_measurementComplete();
             m_baseAnalyzer->startMeasure(fqFrom,fqTo,dotsNumber);
             PopUpIndicator::setIndicatorVisible(true);
             return;

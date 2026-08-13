@@ -10,6 +10,7 @@ bool g_usbOnly = false;
 bool g_raspbian = false;
 bool g_bAA55modeNewProtocol = false;
 MainWindow* g_mainWindow;
+int g_maxDots = 2000;
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -152,7 +153,7 @@ int main(int argc, char *argv[])
 
     if (args.contains("-developer")) {
         g_developerMode = true;
-        MAX_DOTS = 1000000;
+        g_maxDots = 1000000;
     }
     if (args.contains("-usb-only")) {
         g_usbOnly = true;

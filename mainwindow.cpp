@@ -14,6 +14,7 @@ extern QString appendSpaces(const QString& number);
 extern bool g_developerMode; // see main.cpp
 extern bool g_usbOnly;
 extern int g_maxMeasurements; // see measurements.cpp
+extern int g_maxDots;// see main.cpp
 extern void setAbsoluteFqMaximum();
 extern bool g_bAA55modeNewProtocol;
 extern int g_showMessageBox(QWidget* parent, QMessageBox::Icon icon,
@@ -4172,6 +4173,9 @@ void MainWindow::on_pressetsUpBtn_clicked()
 
 void MainWindow::on_exportBtn_clicked()
 {
+    if (isMeasuring())
+        return;
+
     QList <QTableWidgetItem *> list = ui->tableWidget_measurments->selectedItems();
     if(!list.isEmpty())
     {
@@ -4186,6 +4190,9 @@ void MainWindow::on_exportBtn_clicked()
 
 void MainWindow::on_analyzerDataBtn_clicked()
 {
+    if (isMeasuring())
+        return;
+
     m_analyzerData = new AnalyzerData(m_analyzer->getModel(), this);
     m_analyzerData->setAttribute(Qt::WA_DeleteOnClose);
     m_analyzer->getAnalyzerData();
@@ -4208,6 +4215,9 @@ void MainWindow::on_tabWidget_currentChanged(int index)
 
 void MainWindow::on_screenshotAA_clicked()
 {
+    if (isMeasuring())
+        return;
+
 #ifdef NEW_ANALYZER
     AnalyzerParameters* param = AnalyzerParameters::current();
     if (param == nullptr)
@@ -5167,6 +5177,9 @@ void MainWindow::on_tableWidget_measurments_cellDoubleClicked(int row, int colum
 
 void MainWindow::on_screenshot_clicked()
 {
+    if (isMeasuring())
+        return;
+
     QDateTime datetime = QDateTime::currentDateTime();
     QString path = "Images/" + datetime.toString("dd.MM.yyyy_hh.mm.ss");
     QString str = FileDialog::getSaveFileName(this, "Export PNG", path, "*.png");
@@ -5188,6 +5201,9 @@ void MainWindow::on_screenshot_clicked()
 
 void MainWindow::on_printBtn_clicked()
 {
+    if (isMeasuring())
+        return;
+
     QString name = ui->tabWidget->currentWidget()->objectName();
     if (name == "tab_multi") {
         return;
@@ -5415,6 +5431,9 @@ void MainWindow::on_printBtn_clicked()
 
 void MainWindow::on_measurmentsSaveBtn_clicked()
 {
+    if (isMeasuring())
+        return;
+
     QList <QTableWidgetItem *> list = ui->tableWidget_measurments->selectedItems();
 
     if(!list.isEmpty())
@@ -5457,6 +5476,9 @@ void MainWindow::on_measurmentsSaveBtn_clicked()
 
 void MainWindow::on_measurementsOpenBtn_clicked()
 {
+    if (isMeasuring())
+        return;
+
     QString path = FileDialog::getOpenFileName(this, "Open file", m_lastSaveOpenPath, "AntScope2 (*.asd )");
     if(!path.isEmpty())
     {
@@ -5481,6 +5503,9 @@ void MainWindow::openFile(QString path)
 
 void MainWindow::on_importBtn_clicked()
 {
+    if (isMeasuring())
+        return;
+
     if (m_lastExportImportPath.isEmpty()) {
         m_settings->beginGroup("Export");
         m_lastExportImportPath = m_settings->value("lastExportPath", "").toString();
@@ -6091,8 +6116,8 @@ void MainWindow::on_bandChanged(QString band)
 void MainWindow::onSpinChanged(int value)
 {
     if (!g_developerMode) {
-        if (value > MAX_DOTS) {
-            value = MAX_DOTS;
+        if (value > g_maxDots) {
+            value = g_maxDots;
             ui->spinBoxPoints->setValue(value);
         }
     }

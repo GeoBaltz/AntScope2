@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include "crc32.h"
 
+extern int g_maxDots; // see main.cpp
 
 BleAnalyzer::BleAnalyzer(QObject *parent)
     : BaseAnalyzer(parent)
@@ -356,37 +357,34 @@ void BleAnalyzer::stopPing()
     m_pingTimer->stop();
 }
 
+void BleAnalyzer::sendBreak()
+{
+    QByteArray cmd;
+    cmd.fill(0, BLE_PACKET_SIZE);
+    cmd[0] = BLE_BREAK_CMD;
+    cmd[BLE_PACKET_SIZE - 1] = CRC32::crc8(cmd);
+    write(cmd);
+}
+
 void BleAnalyzer::sendPing()
 {
+    if (m_bWaitingPing) {
+        //qDebug() << "SKIP BleAnalyzer::sendPing() m_bWaitingPing=true";
+        return;
+    }
+    if (m_frxGo) {
+        //qDebug() << "SKIP BleAnalyzer::sendPing() m_frxG0=true";
+        return;
+    }
+    //qDebug() << "BleAnalyzer::sendPing()";
     m_bWaitingPing = true;
     QByteArray ping;
     ping.fill(0, BLE_PACKET_SIZE);
-    ping[0] = (quint8)0x5a;
+    ping[0] = BLE_PING_CMD;
     ping[BLE_PACKET_SIZE - 1] = CRC32::crc8(ping);
     write(ping);
 }
-/*
-void BleAnalyzer::handlePing() //1sec timer
-{
-    long cur = QDateTime::currentMSecsSinceEpoch();
-    if ((cur - m_lastReadTimeMS) >= PING_TIMEOUT_MS) {
-        if (m_bWaitingPing) {
-            // error
-            // TODO...
-            AnalyzerParameters::setCurrent(nullptr);
 
-            m_pingTimer->stop();
-            QString err = tr("Analyzer disconnected");
-            setError(err);
-            emit analyzerDisconnected();
-        } else {
-            sendPing();
-        }
-    } else {
-        m_bWaitingPing = false;
-    }
-}
-*/
 void BleAnalyzer::handlePing() //vnn_05 1sec timer
 {
     long cur = QDateTime::currentMSecsSinceEpoch();
@@ -394,8 +392,8 @@ void BleAnalyzer::handlePing() //vnn_05 1sec timer
     long t_noFRX =cur - m_frxTime;
 
     //-----------for FRX point miss----
-    if ((t_noFRX >= 900)&&(isMeasuring())&&(m_frxGo==1)) {
-      m_frxGo=0;
+    if ((t_noFRX >= 900)&&(isMeasuring())&&(m_frxGo)) {
+      m_frxGo=false;
       QString str = QString("LostFRX ! %1 / %2").arg(m_frxCur).arg(m_requestRecord.m_requestPoints);
       qInfo() << str;
       emit completeMeasurement();
@@ -407,14 +405,15 @@ void BleAnalyzer::handlePing() //vnn_05 1sec timer
             // error
             // TODO...
             AnalyzerParameters::setCurrent(nullptr);
-            m_pingTimer->stop();
             QString err = tr("Analyzer disconnected");
             setError(err);
             emit analyzerDisconnected();
         } else {
+            //qDebug() << "handlePing: sendPing()";
             sendPing();// m_bWaitingPing = true;
         }
     } else {
+        //qDebug() << "handlePing: m_bWaitingPing=false";
         m_bWaitingPing = false;
     }
 }
@@ -455,6 +454,15 @@ void BleAnalyzer::dataReceived(const QLowEnergyCharacteristic &c, const QByteArr
     }
     if (value[0] == (quint8)BLE_PING_CMD) {
         returnCRC(value);
+        if (!m_postponedCmd.isEmpty()) {
+            qDebug() << "write FRX postponed";
+            m_bWaitingPing = false;
+            QByteArray cmd = m_postponedCmd.takeFirst();
+            write(cmd);
+            m_frxCur=0;
+            m_frxTime= QDateTime::currentMSecsSinceEpoch();
+            m_frxGo=true;
+        }
         return;
     }
     parseResponse(value);
@@ -523,7 +531,15 @@ void BleAnalyzer::parseResponse(const QByteArray& arr)
     }
     break;
     case (quint8)BLE_REC_LIST_CMD: {
-        parseRecList(stream);
+        QByteArray arr1;
+        arr1.append(arr);
+        arr1.remove(arr1.length()-1, 1);
+        QDataStream stream1 = QDataStream(arr1);
+        stream1.setByteOrder(QDataStream::LittleEndian);
+        stream1.setFloatingPointPrecision(QDataStream::SinglePrecision);
+        quint8 cmd1;
+        stream1 >> cmd1;
+        parseRecList(stream1);
     }
     break;
     case (quint8)BLE_REC_DATA_CMD: {
@@ -551,7 +567,7 @@ void BleAnalyzer::parseRecList(QDataStream& stream)
         break;
     case 1: {
         stream >> m_requestRecord.m_requestPoints ;
-        m_requestRecord.m_requestPoints--; //HUCK for measurement complete
+        m_requestRecord.m_requestPoints--; //HUCK for measurement complete        
         m_requestRecord.m_recordName = bytesToString(stream);
     }
         break;
@@ -562,12 +578,12 @@ void BleAnalyzer::parseRecList(QDataStream& stream)
         }
         m_analyzerRecords.insert(QString::number(m_requestRecord.m_recordCell), m_requestRecord);
         QString str = m_requestRecord.record();
+        m_bWaitingPing = false;
+        m_frxGo = false;
         emit analyzerDataStringArrived(str);
     }
         break;
-    default: {
-
-    }
+    default:
         break;
     }
 }
@@ -627,6 +643,7 @@ void BleAnalyzer::parseFRX(QDataStream& stream)
                 emit newData(data);
             } else {
                 data.r =1;
+                m_frxGo = false;
             }
         }
     }
@@ -675,6 +692,7 @@ void BleAnalyzer::parseFullInfo(QDataStream& stream)
         qint8 extra_mult;
         quint16 maxPoints;
         stream >> minFq >> maxFq >> extra_mult >> maxPoints;
+        g_maxDots = maxPoints;
         if (m_name == "Match") {
             AnalyzerParameters* par = AnalyzerParameters::byName(m_name);
             if (par != nullptr) {
@@ -748,7 +766,7 @@ QString BleAnalyzer::trace(QString _title, QByteArray& _data) {
 QString BleAnalyzer::bytesToString(QDataStream& stream)
 {
     QString str;
-    for(;;) {
+    for(;;) {        
         if (stream.atEnd())
             break;
         quint8 ch;
@@ -774,6 +792,9 @@ double BleAnalyzer::shortToDouble(qint16 src)
 void BleAnalyzer::startMeasure(qint64 from_hz, qint64 to_hz, int dotsNumber, bool _frx)
 {
     Q_UNUSED(_frx)
+    if (!m_postponedCmd.isEmpty())
+        return;
+
     QByteArray data;
     data.append((quint8)BLE_FRX_CMD);
 
@@ -808,10 +829,18 @@ void BleAnalyzer::startMeasure(qint64 from_hz, qint64 to_hz, int dotsNumber, boo
     QString sss = trace("FRX", data);
     setRequest(sss);
 
-    write(data);
-    m_frxCur=0;
-    m_frxTime= QDateTime::currentMSecsSinceEpoch();
-    m_frxGo=true;
+    if (m_bWaitingPing) {
+        qDebug() << "postpone FRX";
+        m_frxGo=false;
+        m_postponedCmd.append(data);
+    } else if (m_frxGo) {
+        qDebug() << "SKIP write FRX";
+    } else {
+        write(data);
+        m_frxCur=0;
+        m_frxTime= QDateTime::currentMSecsSinceEpoch();
+        m_frxGo=true;
+    }
 }
 
 void BleAnalyzer::startMeasureOneFq(qint64 fqFrom_hz, int dotsNumber, bool frx)
@@ -830,12 +859,20 @@ void BleAnalyzer::sendFullInfo()
 
 void BleAnalyzer::getAnalyzerData()
 {
+    m_analyzerRecords.clear();
     QByteArray data;
     data.fill(0, BLE_PACKET_SIZE);
     data[0] = (quint8)BLE_REC_LIST_CMD;
     data[BLE_PACKET_SIZE - 1] = CRC32::crc8(data);
-    write(data);
-    m_analyzerRecords.clear();
+    if (m_bWaitingPing || m_frxGo) {
+        m_postponedCmd.append(data);
+    } else {
+        m_bWaitingPing = false;
+        write(data);
+        m_frxCur=0;
+        m_frxTime= QDateTime::currentMSecsSinceEpoch();
+        m_frxGo=true;
+    }
 }
 
 void BleAnalyzer::getAnalyzerData(QString number)
@@ -870,7 +907,15 @@ void BleAnalyzer::getAnalyzerData(QString number)
     data[19] = CRC32::crc8(data);
     //qInfo() << "getAnalyzerData: " << number << center << range << points << m_requestRecord.m_recordName;
     //qInfo() << trace(number, data);
-    write(data);
+    if (m_bWaitingPing || m_frxGo) {
+        m_postponedCmd.append(data);
+    } else {
+        m_bWaitingPing = false;
+        write(data);
+        m_frxCur=0;
+        m_frxTime= QDateTime::currentMSecsSinceEpoch();
+        m_frxGo=true;
+    }
 }
 
 void BleAnalyzer::makeScreenshot()
@@ -879,12 +924,23 @@ void BleAnalyzer::makeScreenshot()
     data.fill(0, BLE_PACKET_SIZE);
     data[0] = (quint8)BLE_SCREENSHOT_CMD;
     data[BLE_PACKET_SIZE - 1] = CRC32::crc8(data);
-    write(data);
+    if (m_bWaitingPing || m_frxGo) {
+        m_postponedCmd.append(data);
+    } else {
+        m_bWaitingPing = false;
+        write(data);
+        m_frxCur=0;
+        m_frxTime= QDateTime::currentMSecsSinceEpoch();
+        m_frxGo=true;
+    }
 }
 
 void BleAnalyzer::stopMeasure()
 {
     m_isMeasuring = false;
+    m_bWaitingPing = false;
+    m_frxGo = false;
+    sendBreak();
 }
 
 bool BleAnalyzer::refreshConnection()
@@ -892,4 +948,21 @@ bool BleAnalyzer::refreshConnection()
     setInnerScan(true);
     searchAnalyzer();
     return true;
+}
+
+void BleAnalyzer::on_measurementComplete()
+{
+    BaseAnalyzer::on_measurementComplete();
+    m_bWaitingPing = false;
+    m_frxGo = false;
+    //qDebug() << "BleAnalyzer::on_measurementComplete() m_frxGo =" << m_frxGo;
+}
+
+void BleAnalyzer::on_screenshotComplete()
+{
+    BaseAnalyzer::on_screenshotComplete();
+    m_bWaitingPing = false;
+    m_frxGo = false;
+    //qDebug() << "BleAnalyzer::on_screenshotComplete()" << m_bWaitingPing << m_frxGo;
+    sendPing();
 }

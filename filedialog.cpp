@@ -60,7 +60,10 @@ QString FileDialog::getExistingDirectory(QWidget *parent,
 {
     QString name;
     QFileDialog dlg(parent);
+    dlg.setFileMode(QFileDialog::Directory);
     dlg.setOption(QFileDialog::DontUseNativeDialog, true);
+    dlg.setOption(QFileDialog::ShowDirsOnly, true);
+    dlg.setOption(QFileDialog::DontResolveSymlinks, true);
     dlg.setWindowTitle(caption);
     dlg.setDirectory(dir);
     dlg.setOptions(options);

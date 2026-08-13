@@ -2470,6 +2470,7 @@ void Measurements::on_calibrationEnabled(bool enabled)
 
 void Measurements::saveData(quint32 number, QString path)
 {
+    qDebug() << "Measurements::saveData" << number;
     if (number >= (quint32)g_maxMeasurements)
         number = g_maxMeasurements-1;
 
