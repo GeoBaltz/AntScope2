@@ -517,6 +517,10 @@ void AnalyzerPro::on_analyzerScreenPaletteArrived(QByteArray arr, quint8 cmd)
 
 void AnalyzerPro::on_screenshotComplete(void)
 {
+    if(m_baseAnalyzer != nullptr)
+    {
+        m_baseAnalyzer->on_screenshotComplete();
+    }
     emit screenshotComplete();
 }
 
@@ -841,7 +845,7 @@ void AnalyzerPro::slotFullInfo(const QString& _info)
             par->setMaxFq("690000");
         } else {
             m_license = "BASE";
-            par->setMaxFq("70000");
+            par->setMaxFq("75000");
         }
     }
 }

@@ -23,7 +23,7 @@ class Screenshot : public QDialog
 public:
     explicit Screenshot(QWidget *parent = 0,int model = 0, int height = 0, int width = 0);
     ~Screenshot();
-
+    static quint8 screenCompression;
 
 private:
     Ui::Screenshot *ui;

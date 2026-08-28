@@ -110,6 +110,7 @@ void BaseAnalyzer::on_screenshotComplete()
 {
     m_parseState = WAIT_NO;
     setIsMeasuring(false);
+    qDebug() << "BaseAnalyzer::on_screenshotComplete()";
 }
 
 void BaseAnalyzer::getAnalyzerData()

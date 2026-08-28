@@ -3,6 +3,8 @@
 #include <QOperatingSystemVersion>
 #include <QDateTime>
 #include "crc32.h"
+#include "screenshot.h"
+
 
 extern int g_maxDots; // see main.cpp
 
@@ -316,6 +318,8 @@ void BleAnalyzer::serviceStateChanged(QLowEnergyService::ServiceState s)
         const QLowEnergyCharacteristic hrReturn = m_service->characteristic(QBluetoothUuid(uuidReturn));
         m_reuChip = hrReturn.isValid();
 
+        // QString str = (m_reuChip?"TRUE":"FALSE");
+        // QMessageBox::information(0, "m_reuChip", "m_reuChip = " + str);
         m_notificationDesc = hrChar.descriptor(QBluetoothUuid(uuidDescriptor));
         if (m_notificationDesc.isValid())
             m_service->writeDescriptor(m_notificationDesc, QByteArray::fromHex("0100"));
@@ -376,7 +380,10 @@ void BleAnalyzer::sendPing()
         //qDebug() << "SKIP BleAnalyzer::sendPing() m_frxG0=true";
         return;
     }
-    //qDebug() << "BleAnalyzer::sendPing()";
+    long cur = QDateTime::currentMSecsSinceEpoch();
+    long dt = m_lastPingTimeMS == 0 ? 0 : (cur - m_lastPingTimeMS);
+    m_lastPingTimeMS = cur;
+    //qDebug() << "BleAnalyzer::sendPing() " << dt;
     m_bWaitingPing = true;
     QByteArray ping;
     ping.fill(0, BLE_PACKET_SIZE);
@@ -387,6 +394,7 @@ void BleAnalyzer::sendPing()
 
 void BleAnalyzer::handlePing() //vnn_05 1sec timer
 {
+    //qDebug() << "BleAnalyzer::handlePing() m_bWaitingPing=" << m_bWaitingPing << "m_frxGo=" << m_frxGo;
     long cur = QDateTime::currentMSecsSinceEpoch();
     long t_noRx =cur - m_lastReadTimeMS;
     long t_noFRX =cur - m_frxTime;
@@ -399,23 +407,46 @@ void BleAnalyzer::handlePing() //vnn_05 1sec timer
       emit completeMeasurement();
      }
 
-    //-----------for ping--------------
-    if (t_noRx >= PING_TIMEOUT_MS) {
-        if ((m_bWaitingPing)&&(t_noRx>(2*PING_TIMEOUT_MS))) {
-            // error
-            // TODO...
-            AnalyzerParameters::setCurrent(nullptr);
-            QString err = tr("Analyzer disconnected");
-            setError(err);
-            emit analyzerDisconnected();
-        } else {
-            //qDebug() << "handlePing: sendPing()";
-            sendPing();// m_bWaitingPing = true;
+    // //-----------for ping--------------
+    // if (t_noRx >= PING_TIMEOUT_MS) {
+    //     if ((m_bWaitingPing)&&(t_noRx>(2*PING_TIMEOUT_MS))) {
+    //         // error
+    //         // TODO...
+    //         AnalyzerParameters::setCurrent(nullptr);
+    //         QString err = tr("Analyzer disconnected");
+    //         setError(err);
+    //         emit analyzerDisconnected();
+    //     } else {
+    //         //qDebug() << "handlePing: sendPing()";
+    //         sendPing();// m_bWaitingPing = true;
+    //     }
+    // } else {
+    //     //qDebug() << "handlePing: m_bWaitingPing=false";
+    //     //m_bWaitingPing = false;
+    //     sendPing();
+    // }
+
+    if (m_bWaitingPing) {
+         //qDebug() << "handlePing: m_bWaitingPing=true";
+         if (t_noRx >= 2*PING_TIMEOUT_MS) {
+             //TODO
+             //qDebug() << "handlePing: t_noRx >= 2*PING_TIMEOUT_MS";
+             //qDebug() << "ERROR";
+         } else {
+             if (t_noRx < PING_TIMEOUT_MS)
+                ;//qDebug() << "handlePing: still waiting " << t_noRx;
+             else {
+                 //qDebug() << "handlePing: {ping 1} t_noRx=" << t_noRx;
+                 sendPing();
+             }
+         }
+     } else {
+        if (t_noRx >= (long)(0.7*PING_TIMEOUT_MS)) {
+             //qDebug() << "handlePing: m_bWaitingPing=false";
+             //qDebug() << "handlePing: {ping 2} t_noRx=" << t_noRx;
+             sendPing();
         }
-    } else {
-        //qDebug() << "handlePing: m_bWaitingPing=false";
-        m_bWaitingPing = false;
-    }
+     }
 }
 
 
@@ -455,13 +486,16 @@ void BleAnalyzer::dataReceived(const QLowEnergyCharacteristic &c, const QByteArr
     if (value[0] == (quint8)BLE_PING_CMD) {
         returnCRC(value);
         if (!m_postponedCmd.isEmpty()) {
-            qDebug() << "write FRX postponed";
+            //qDebug() << "write FRX postponed";
             m_bWaitingPing = false;
             QByteArray cmd = m_postponedCmd.takeFirst();
             write(cmd);
             m_frxCur=0;
             m_frxTime= QDateTime::currentMSecsSinceEpoch();
             m_frxGo=true;
+        } else {
+            m_bWaitingPing = false;
+            m_frxGo = false;
         }
         return;
     }
@@ -578,12 +612,20 @@ void BleAnalyzer::parseRecList(QDataStream& stream)
         }
         m_analyzerRecords.insert(QString::number(m_requestRecord.m_recordCell), m_requestRecord);
         QString str = m_requestRecord.record();
-        m_bWaitingPing = false;
-        m_frxGo = false;
+        // m_bWaitingPing = false;
+        // m_frxGo = false;
         emit analyzerDataStringArrived(str);
     }
         break;
+    case (qint8)0xFF: {
+        m_bWaitingPing = false;
+        m_frxGo = false;
+        //qDebug() << "parseRecList COMPLETE";
+    }
+        break;
     default:
+        m_bWaitingPing = false;
+        m_frxGo = false;
         break;
     }
 }
@@ -730,11 +772,14 @@ void BleAnalyzer::parseFullInfo(QDataStream& stream)
         quint16 wd, ht;
         quint8 bpp, pix;
         stream >> wd >> ht >> bpp >> pix;
-        str = "Display:"; setResponse(str);
-        str = QString("  width %1").arg(wd); setResponse(str);
-        str = QString("  height %1").arg(ht); setResponse(str);
-        str = QString("  bytes per pixel %1").arg(bpp); setResponse(str);
-        str = QString("  pixel compression %1").arg(pix); setResponse(str);
+        Screenshot::screenCompression = pix;
+        QString ss;
+        str = "Display:"; setResponse(str); ss += str;
+        str = QString("  width %1").arg(wd); setResponse(str); ss += str;
+        str = QString("  height %1").arg(ht); setResponse(str); ss += str;
+        str = QString("  bytes per pixel %1").arg(bpp); setResponse(str); ss += str;
+        str = QString("  pixel compression %1").arg(pix); setResponse(str); ss += str;
+        qDebug() << "BLE_FULLINFO_DISPLAY" << ss;
     }
         break;
     case (quint8)BLE_FULLINFO_FLASH:
@@ -749,6 +794,8 @@ void BleAnalyzer::parseFullInfo(QDataStream& stream)
         QString hw = bytesToString(stream);
         str = "HW: " + hw;
         setResponse(str);
+        m_bWaitingPing = false;
+        m_frxGo = false;
     }
         break;
     }
@@ -830,11 +877,11 @@ void BleAnalyzer::startMeasure(qint64 from_hz, qint64 to_hz, int dotsNumber, boo
     setRequest(sss);
 
     if (m_bWaitingPing) {
-        qDebug() << "postpone FRX";
+        //qDebug() << "postpone FRX";
         m_frxGo=false;
         m_postponedCmd.append(data);
     } else if (m_frxGo) {
-        qDebug() << "SKIP write FRX";
+        //qDebug() << "SKIP write FRX";
     } else {
         write(data);
         m_frxCur=0;
@@ -961,8 +1008,10 @@ void BleAnalyzer::on_measurementComplete()
 void BleAnalyzer::on_screenshotComplete()
 {
     BaseAnalyzer::on_screenshotComplete();
+    sendBreak();
     m_bWaitingPing = false;
     m_frxGo = false;
-    //qDebug() << "BleAnalyzer::on_screenshotComplete()" << m_bWaitingPing << m_frxGo;
+    m_lastReadTimeMS = QDateTime::currentMSecsSinceEpoch();
+    //qDebug() << "BleAnalyzer::on_screenshotComplete()" << m_bWaitingPing << m_frxGo << m_lastReadTimeMS;
     sendPing();
 }

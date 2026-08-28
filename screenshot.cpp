@@ -5,6 +5,8 @@
 #include "filedialog.h"
 #include "analyzer/ble_analyzer.h"
 
+quint8 Screenshot::screenCompression=1;
+
 extern int g_showMessageBox(QWidget* parent, QMessageBox::Icon icon,
                             QString title, QString text,
                             QMessageBox::StandardButtons buttons = QMessageBox::Ok,
@@ -266,10 +268,12 @@ void Screenshot::on_fillPalette(QByteArray  pal, quint8 cmd)
     QString name = param == nullptr ? "" : param->name();
     QString model = CustomAnalyzer::customized() ?
                         CustomAnalyzer::currentPrototype() : name;
-    if (model == "Stick Pro" || model == "Stick XPro") {
-        if (cmd == BLE_SCREEN_PAL_CMD)
-            fillPalette565(pal);
-    }
+    // ?????
+    // if (model == "Stick Pro" || model == "Stick XPro") {
+    //     if (cmd == BLE_SCREEN_PAL_CMD)
+    //         fillPalette565(pal);
+    // }
+    // ?????
     switch (cmd) {
     case BLE_SCREEN_PAL_CMD:
         fillPalette565(pal);
@@ -286,6 +290,7 @@ void Screenshot::on_fillPalette(QByteArray  pal, quint8 cmd)
     }
 }
 
+static int total = 0;
 void Screenshot::on_newData(QByteArray data)
 {
     if (m_emulate)
@@ -410,8 +415,11 @@ void Screenshot::on_newData(QByteArray data)
                 }
             }
         }
-    }else if (model == "AA-650 ZOOM" && binaryProtocol) {
-            while (!m_inputData.isEmpty()) {
+    }else
+
+    if (model == "AA-650 ZOOM" && binaryProtocol) {
+        if (screenCompression ==  2) {
+             while (!m_inputData.isEmpty()) {
                 auto data = m_inputData.takeFirst();
                 int quantity = ((data & 0xc0) >> 6) + 1;
                 if (quantity > 3) {
@@ -430,10 +438,44 @@ void Screenshot::on_newData(QByteArray data)
                 for (int i=0; i<quantity; i++) {
                     m_imageVector.append(rgb);
                 }
-                qDebug() << QString("{%1} pix=%2[%3]: %4, %5, %6 N:%7")
+                if (total++ <= 10)
+                    qDebug() << QString("{%1} pix=%2[%3]: %4, %5, %6 N:%7")
                                 .arg(data, 2, 16, QChar('0')).arg(quantity).arg(quantity, 2, 16, QChar('0'))
                                 .arg(red).arg(green).arg(blue).arg(m_imageVector.size());
             }
+        } // screenCompression
+        else {
+            while(m_inputData.length() > 3)
+            {
+                int data = (((int)m_inputData.takeFirst())<<8);
+                data += (int)m_inputData.takeFirst();
+                int quantity = (int)m_inputData.takeFirst();
+
+                if (quantity == 0)
+                    continue;
+
+                int red = data&0x1F;
+                int green = (data>>5)&0x3F;
+                int blue = (data>>11)&0x1F;
+
+                //if (model == "AA-230 ZOOM" || model == "AA-2000") {
+                if ((model == "AA-2000 ZOOM") || (model == "AA-3000 ZOOM") || (model == "AA-1500 ZOOM SE") || (model == "Match")) {
+                    int tmp = red;
+                    red = blue;
+                    blue = tmp;
+                }
+                red = (red<<3) + ( (red&0x10) ? 0x07 : 0 );
+                green = (green<<2) + ( (green&0x20) ? 0x03 : 0 );
+                blue = (blue<<3)+ ( (blue&0x10) ? 0x07 : 0 );
+
+                QRgb rgb = qRgb(red,green,blue);
+                for(int i = 0; i < quantity; ++i)
+                {
+                    m_imageVector.append(rgb);
+                }
+            }
+
+        }
         }else {
         while(m_inputData.length() > 3)
         {
